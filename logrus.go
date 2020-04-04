@@ -25,6 +25,10 @@ func (w *logruswrapper) WithPrefix(prefix string) Logger {
 	}
 }
 
+func (w *logruswrapper) WithPrefixf(format string, args ...interface{}) Logger {
+	return w.WithPrefix(fmt.Sprintf(format, args...))
+}
+
 func (w *logruswrapper) WithField(key string, value interface{}) Logger {
 	return &logruswrapper{
 		prefix: w.prefix,

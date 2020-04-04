@@ -8,6 +8,7 @@ A simple prefixer logger that can wrap several backends.
 ```go
 type Logger interface {
 	WithPrefix(prefix string) Logger
+	WithPrefixf(format string, args ...interface{}) Logger
 	WithField(key string, value interface{}) Logger
 	WithError(error error) Logger
 	WithFields(fields map[string]interface{}) Logger

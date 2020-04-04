@@ -4,6 +4,7 @@ package logger
 // so that any backend can be plugged in.
 type Logger interface {
 	WithPrefix(prefix string) Logger
+	WithPrefixf(format string, args ...interface{}) Logger
 	WithField(key string, value interface{}) Logger
 	WithError(error error) Logger
 	WithFields(fields map[string]interface{}) Logger
