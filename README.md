@@ -36,7 +36,7 @@ type Logger interface {
 
 ## Backends
 
-- [Logrus](github.com/sirupsen/logrus) with `logger.WrapLogrus(l *logrus.Logger)` function
+- [Logrus](https://github.com/sirupsen/logrus) with `logger.WrapLogrus(l *logrus.Logger)` function
 
 
 ## Helpers
