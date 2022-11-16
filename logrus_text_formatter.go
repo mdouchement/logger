@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mgutz/ansi"
@@ -65,11 +66,20 @@ type LogrusTextFormatter struct {
 	// e.g. Use `^(\[.*?\])\s` to colorize prefix for message like "[prefix#1][prefix#2] The message"
 	PrefixRE *regexp.Regexp
 
+	// ValueFormatter is the format of the value when logs are pretty printed.
+	// The default value is `%v'. You can use `%+v' to print the stacktrace of github.com/pkg/errors.
+	ValueFormatter string
+
 	// Color scheme to use.
 	colorScheme *compiledColorScheme
 
 	// Whether the logger's out is to a terminal.
 	isTerminal bool
+
+	// Index of the printed entry (useful to sort lines in Graylog)
+	index uint32
+
+	template string
 
 	sync.Once
 }
@@ -81,8 +91,7 @@ func (f *LogrusTextFormatter) SetColorScheme(colorScheme *ColorScheme) {
 
 // Format implements logrus.Formatter.
 func (f *LogrusTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	var b *bytes.Buffer
-	var keys []string = make([]string, 0, len(entry.Data))
+	keys := make([]string, 0, len(entry.Data))
 	for k := range entry.Data {
 		keys = append(keys, k)
 	}
@@ -91,43 +100,46 @@ func (f *LogrusTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if !f.DisableSorting {
 		sort.Strings(keys)
 	}
-	if entry.Buffer != nil {
-		b = entry.Buffer
-	} else {
-		b = &bytes.Buffer{}
+
+	b := entry.Buffer
+	if b != nil {
+		b = new(bytes.Buffer)
 	}
 
 	prefixFieldClashes(entry.Data)
 
 	f.Do(func() { f.init(entry) })
 
-	isFormatted := f.ForceFormatting || f.isTerminal
-
 	timestampFormat := f.TimestampFormat
 	if timestampFormat == "" {
 		timestampFormat = defaultTimestampFormat
 	}
-	if isFormatted {
+
+	if f.ForceFormatting || f.isTerminal { // Is formatted
 		isColored := (f.ForceColors || f.isTerminal) && !f.DisableColors
 		var colorScheme *compiledColorScheme
 		if isColored {
-			if f.colorScheme == nil {
+			colorScheme = f.colorScheme
+			if colorScheme == nil {
 				colorScheme = defaultCompiledColorScheme
-			} else {
-				colorScheme = f.colorScheme
 			}
 		} else {
 			colorScheme = noColorsColorScheme
 		}
 		f.printColored(b, entry, keys, timestampFormat, colorScheme)
 	} else {
+		index := atomic.AddUint32(&f.index, 1)
+		f.appendKeyValue(b, "index", index, true)
+		f.appendKeyValue(b, "level", entry.Level.String(), true)
+
 		if !f.DisableTimestamp {
 			f.appendKeyValue(b, "time", entry.Time.Format(timestampFormat), true)
 		}
-		f.appendKeyValue(b, "level", entry.Level.String(), true)
+
 		if entry.Message != "" {
 			f.appendKeyValue(b, "msg", entry.Message, lastKeyIdx >= 0)
 		}
+
 		for i, key := range keys {
 			f.appendKeyValue(b, key, entry.Data[key], lastKeyIdx != i)
 		}
@@ -155,10 +167,9 @@ func (f *LogrusTextFormatter) printColored(b *bytes.Buffer, entry *logrus.Entry,
 		levelColor = colorScheme.DebugLevelColor
 	}
 
+	levelText = "warn"
 	if entry.Level != logrus.WarnLevel {
 		levelText = entry.Level.String()
-	} else {
-		levelText = "warn"
 	}
 
 	if !f.DisableUppercase {
@@ -191,9 +202,10 @@ func (f *LogrusTextFormatter) printColored(b *bytes.Buffer, entry *logrus.Entry,
 		}
 		fmt.Fprintf(b, "%s %s "+messageFormat, colorScheme.TimestampColor(timestamp), level, message)
 	}
+
 	for _, k := range keys {
 		v := entry.Data[k]
-		fmt.Fprintf(b, " %s=%+v", levelColor(k), v)
+		fmt.Fprintf(b, f.template, levelColor(k), v)
 	}
 }
 
@@ -201,6 +213,7 @@ func (f *LogrusTextFormatter) needsQuoting(text string) bool {
 	if f.QuoteEmptyFields && len(text) == 0 {
 		return true
 	}
+
 	for _, ch := range text {
 		if !((ch >= 'a' && ch <= 'z') ||
 			(ch >= 'A' && ch <= 'Z') ||
@@ -246,6 +259,12 @@ func (f *LogrusTextFormatter) init(entry *logrus.Entry) {
 	if len(f.QuoteCharacter) == 0 {
 		f.QuoteCharacter = "\""
 	}
+
+	if len(f.ValueFormatter) == 0 {
+		f.ValueFormatter = "%v"
+	}
+	f.template = " %s=" + f.ValueFormatter
+
 	if entry.Logger != nil {
 		f.isTerminal = f.checkIfTerminal(entry.Logger.Out)
 	}
@@ -263,12 +282,12 @@ func (f *LogrusTextFormatter) checkIfTerminal(w io.Writer) bool {
 // This is to not silently overwrite `time`, `msg` and `level` fields when
 // dumping it. If this code wasn't there doing:
 //
-//  logrus.WithField("level", 1).Info("hello")
+//	logrus.WithField("level", 1).Info("hello")
 //
 // would just silently drop the user provided level. Instead with this code
 // it'll be logged as:
 //
-//  {"level": "info", "fields.level": 1, "msg": "hello", "time": "..."}
+//	{"level": "info", "fields.level": 1, "msg": "hello", "time": "..."}
 func prefixFieldClashes(data logrus.Fields) {
 	if t, ok := data["time"]; ok {
 		data["fields.time"] = t
@@ -286,8 +305,8 @@ func prefixFieldClashes(data logrus.Fields) {
 const defaultTimestampFormat = time.RFC3339
 
 var (
-	baseTimestamp      time.Time    = time.Now()
-	defaultColorScheme *ColorScheme = &ColorScheme{
+	baseTimestamp      = time.Now()
+	defaultColorScheme = &ColorScheme{
 		InfoLevelStyle:  "green",
 		WarnLevelStyle:  "yellow",
 		ErrorLevelStyle: "red",
@@ -297,7 +316,8 @@ var (
 		PrefixStyle:     "cyan",
 		TimestampStyle:  "black+h",
 	}
-	noColorsColorScheme *compiledColorScheme = &compiledColorScheme{
+
+	noColorsColorScheme = &compiledColorScheme{
 		InfoLevelColor:  ansi.ColorFunc(""),
 		WarnLevelColor:  ansi.ColorFunc(""),
 		ErrorLevelColor: ansi.ColorFunc(""),
@@ -307,7 +327,8 @@ var (
 		PrefixColor:     ansi.ColorFunc(""),
 		TimestampColor:  ansi.ColorFunc(""),
 	}
-	defaultCompiledColorScheme *compiledColorScheme = compileColorScheme(defaultColorScheme)
+
+	defaultCompiledColorScheme = compileColorScheme(defaultColorScheme)
 )
 
 func miniTS() int {
@@ -337,13 +358,10 @@ type compiledColorScheme struct {
 }
 
 func getCompiledColor(main string, fallback string) func(string) string {
-	var style string
-	if main != "" {
-		style = main
-	} else {
-		style = fallback
+	if main == "" {
+		main = fallback
 	}
-	return ansi.ColorFunc(style)
+	return ansi.ColorFunc(main)
 }
 
 func compileColorScheme(s *ColorScheme) *compiledColorScheme {
