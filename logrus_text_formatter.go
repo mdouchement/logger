@@ -14,7 +14,7 @@ import (
 
 	"github.com/mgutz/ansi"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // A LogrusTextFormatter is pretty printer for Logrus.
@@ -273,7 +273,7 @@ func (f *LogrusTextFormatter) init(entry *logrus.Entry) {
 func (f *LogrusTextFormatter) checkIfTerminal(w io.Writer) bool {
 	switch v := w.(type) {
 	case *os.File:
-		return terminal.IsTerminal(int(v.Fd()))
+		return term.IsTerminal(int(v.Fd()))
 	default:
 		return false
 	}
