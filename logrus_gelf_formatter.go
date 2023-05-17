@@ -3,12 +3,12 @@ package logger
 import (
 	"encoding/json"
 	"fmt"
-	"log/syslog"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/mdouchement/logger/syslog"
 	"github.com/sirupsen/logrus"
 )
 
