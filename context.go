@@ -20,7 +20,7 @@ func WithLogger(ctx context.Context, l Logger) context.Context {
 func LogWith(ctx context.Context) Logger {
 	l, ok := ctx.Value(LoggerKey).(Logger)
 	if !ok {
-		panic("no logger defined in the givent context")
+		panic("no logger defined in the given context")
 	}
 	return l
 }
