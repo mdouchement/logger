@@ -4,30 +4,30 @@ package logger
 // so that any backend can be plugged in.
 type Logger interface {
 	WithPrefix(prefix string) Logger
-	WithPrefixf(format string, args ...interface{}) Logger
-	WithField(key string, value interface{}) Logger
+	WithPrefixf(format string, args ...any) Logger
+	WithField(key string, value any) Logger
 	WithError(error error) Logger
-	WithFields(fields map[string]interface{}) Logger
+	WithFields(fields map[string]any) Logger
 	//
-	Debug(args ...interface{})
-	Debugf(format string, args ...interface{})
-	Info(args ...interface{})
-	Infof(format string, args ...interface{})
-	Warn(args ...interface{})
-	Warnf(format string, args ...interface{})
-	Error(args ...interface{})
-	Errorf(format string, args ...interface{})
+	Debug(args ...any)
+	Debugf(format string, args ...any)
+	Info(args ...any)
+	Infof(format string, args ...any)
+	Warn(args ...any)
+	Warnf(format string, args ...any)
+	Error(args ...any)
+	Errorf(format string, args ...any)
 	//
-	Print(args ...interface{})
-	Printf(format string, args ...interface{})
-	Println(args ...interface{})
-	Fatal(args ...interface{})
-	Fatalf(format string, args ...interface{})
-	Fatalln(args ...interface{})
-	Panic(args ...interface{})
-	Panicf(format string, args ...interface{})
-	Panicln(args ...interface{})
+	Print(args ...any)
+	Printf(format string, args ...any)
+	Println(args ...any)
+	Fatal(args ...any)
+	Fatalf(format string, args ...any)
+	Fatalln(args ...any)
+	Panic(args ...any)
+	Panicf(format string, args ...any)
+	Panicln(args ...any)
 }
 
 // M defines a generic map of type `map[string]interface{}`.
-type M map[string]interface{}
+type M map[string]any
