@@ -225,7 +225,7 @@ func (f *LogrusTextFormatter) needsQuoting(text string) bool {
 	return false
 }
 
-func (f *LogrusTextFormatter) appendKeyValue(b *bytes.Buffer, key string, value interface{}, appendSpace bool) {
+func (f *LogrusTextFormatter) appendKeyValue(b *bytes.Buffer, key string, value any, appendSpace bool) {
 	b.WriteString(key)
 	b.WriteByte('=')
 	f.appendValue(b, value)
@@ -235,7 +235,7 @@ func (f *LogrusTextFormatter) appendKeyValue(b *bytes.Buffer, key string, value 
 	}
 }
 
-func (f *LogrusTextFormatter) appendValue(b *bytes.Buffer, value interface{}) {
+func (f *LogrusTextFormatter) appendValue(b *bytes.Buffer, value any) {
 	switch value := value.(type) {
 	case string:
 		if !f.needsQuoting(value) {
