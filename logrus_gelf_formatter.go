@@ -40,6 +40,11 @@ func (f *LogrusGELFFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 			continue
 		}
 
+		if k == KeyPrefix {
+			entry.Message = fmt.Sprintf("%s %s", v, entry.Message)
+			continue
+		}
+
 		// otherwise convert if necessary
 		switch value := v.(type) {
 		case time.Time:

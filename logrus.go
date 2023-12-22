@@ -7,7 +7,6 @@ import (
 )
 
 type logruswrapper struct {
-	prefix string
 	logrus *logrus.Entry
 }
 
@@ -19,9 +18,9 @@ func WrapLogrus(l *logrus.Logger) Logger {
 }
 
 func (w *logruswrapper) WithPrefix(prefix string) Logger {
+	p, _ := w.logrus.Data[KeyPrefix].(string) // If the map value is not a string, p is an empty string (no panic).
 	return &logruswrapper{
-		prefix: w.prefix + prefix,
-		logrus: w.logrus.WithContext(w.logrus.Context), // Create a new entry without modifying anything.
+		logrus: w.logrus.WithField(KeyPrefix, p+prefix),
 	}
 }
 
@@ -31,105 +30,86 @@ func (w *logruswrapper) WithPrefixf(format string, args ...any) Logger {
 
 func (w *logruswrapper) WithField(key string, value any) Logger {
 	return &logruswrapper{
-		prefix: w.prefix,
 		logrus: w.logrus.WithField(key, value),
 	}
 }
 
 func (w *logruswrapper) WithError(err error) Logger {
 	return &logruswrapper{
-		prefix: w.prefix,
 		logrus: w.logrus.WithError(err),
 	}
 }
 
 func (w *logruswrapper) WithFields(fields map[string]any) Logger {
 	return &logruswrapper{
-		prefix: w.prefix,
 		logrus: w.logrus.WithFields(fields),
 	}
 }
 
 func (w *logruswrapper) Debug(args ...any) {
-	w.logrus.Debug(w.prependPrefix(args)...)
+	w.logrus.Debug(args...)
 }
 
 func (w *logruswrapper) Debugf(format string, args ...any) {
-	w.logrus.Debugf(w.appendPrefix(format), args...)
+	w.logrus.Debugf(format, args...)
 }
 
 func (w *logruswrapper) Info(args ...any) {
-	w.logrus.Info(w.prependPrefix(args)...)
+	w.logrus.Info(args...)
 }
 
 func (w *logruswrapper) Infof(format string, args ...any) {
-	w.logrus.Infof(w.appendPrefix(format), args...)
+	w.logrus.Infof(format, args...)
 }
 
 func (w *logruswrapper) Warn(args ...any) {
-	w.logrus.Warn(w.prependPrefix(args)...)
+	w.logrus.Warn(args...)
 }
 
 func (w *logruswrapper) Warnf(format string, args ...any) {
-	w.logrus.Warnf(w.appendPrefix(format), args...)
+	w.logrus.Warnf(format, args...)
 }
 
 func (w *logruswrapper) Error(args ...any) {
-	w.logrus.Error(w.prependPrefix(args)...)
+	w.logrus.Error(args...)
 }
 
 func (w *logruswrapper) Errorf(format string, args ...any) {
-	w.logrus.Errorf(w.appendPrefix(format), args...)
+	w.logrus.Errorf(format, args...)
 }
 
 func (w *logruswrapper) Print(args ...any) {
-	w.logrus.Print(w.prependPrefix(args)...)
+	w.logrus.Print(args...)
 }
 
 func (w *logruswrapper) Printf(format string, args ...any) {
-	w.logrus.Printf(w.appendPrefix(format), args...)
+	w.logrus.Printf(format, args...)
 }
 
 func (w *logruswrapper) Println(args ...any) {
-	w.logrus.Println(w.prependPrefix(args)...)
+	w.logrus.Println(args...)
 }
 
 func (w *logruswrapper) Fatal(args ...any) {
-	w.logrus.Fatal(w.prependPrefix(args)...)
+	w.logrus.Fatal(args...)
 }
 
 func (w *logruswrapper) Fatalf(format string, args ...any) {
-	w.logrus.Fatalf(w.appendPrefix(format), args...)
+	w.logrus.Fatalf(format, args...)
 }
 
 func (w *logruswrapper) Fatalln(args ...any) {
-	w.logrus.Fatalln(w.prependPrefix(args)...)
+	w.logrus.Fatalln(args...)
 }
 
 func (w *logruswrapper) Panic(args ...any) {
-	w.logrus.Panic(w.prependPrefix(args)...)
+	w.logrus.Panic(args...)
 }
 
 func (w *logruswrapper) Panicf(format string, args ...any) {
-	w.logrus.Panicf(w.appendPrefix(format), args...)
+	w.logrus.Panicf(format, args...)
 }
 
 func (w *logruswrapper) Panicln(args ...any) {
-	w.logrus.Panicln(w.prependPrefix(args)...)
-}
-
-func (w *logruswrapper) appendPrefix(msg string) string {
-	if w.prefix == "" {
-		return msg
-	}
-
-	return fmt.Sprintf("%s %s", w.prefix, msg)
-}
-
-func (w *logruswrapper) prependPrefix(args []any) []any {
-	if w.prefix == "" {
-		return args
-	}
-
-	return append([]any{w.prefix + " "}, args...)
+	w.logrus.Panicln(args...)
 }
