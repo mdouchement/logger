@@ -31,7 +31,7 @@ func TestSlog(t *testing.T) {
 	l.Error("error")
 
 	// INFO
-	expected := regexp.MustCompile(`\{"_g1\.g2\.g3\.l":"y","_g1\.g2\.g3\.r":"x","_g1\.r1":"1","_level_name":"INFO","_root":"root","host":"hostname-42","level":6,"short_message":"\[uuid\] info","timestamp":\d+.\d+,"version":"1\.1"\}`)
+	expected := regexp.MustCompile(`\{"version":"1\.1","_root":"root","_g1\.r1":"1","_g1\.g2\.g3\.r":"x","_g1\.g2\.g3\.l":"y","host":"hostname-42","timestamp":\d+.\d+,"level":6,"short_message":"\[uuid\] info","_level_name":"INFO"\}`)
 	line, err := w.ReadString('\n')
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestSlog(t *testing.T) {
 	}
 
 	// WARN
-	expected = regexp.MustCompile(`\{"_g1\.g2\.g3\.l":"y","_g1\.g2\.g3\.r":"x","_g1\.r1":"1","_level_name":"WARN","_root":"root","host":"hostname-42","level":4,"short_message":"\[uuid\] warn","timestamp":\d+.\d+,"version":"1\.1"\}`)
+	expected = regexp.MustCompile(`\{"version":"1\.1","_root":"root","_g1\.r1":"1","_g1\.g2\.g3\.r":"x","_g1\.g2\.g3\.l":"y","host":"hostname-42","timestamp":\d+.\d+,"level":4,"short_message":"\[uuid\] warn","_level_name":"WARN"\}`)
 	line, err = w.ReadString('\n')
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestSlog(t *testing.T) {
 	}
 
 	// ERROR
-	expected = regexp.MustCompile(`\{"_g1\.g2\.g3\.l":"y","_g1\.g2\.g3\.r":"x","_g1\.r1":"1","_level_name":"ERROR","_root":"root","host":"hostname-42","level":3,"short_message":"\[uuid\] error","timestamp":\d+.\d+,"version":"1\.1"\}`)
+	expected = regexp.MustCompile(`\{"version":"1\.1","_root":"root","_g1\.r1":"1","_g1\.g2\.g3\.r":"x","_g1\.g2\.g3\.l":"y","host":"hostname-42","timestamp":\d+.\d+,"level":3,"short_message":"\[uuid\] error","_level_name":"ERROR"\}`)
 	line, err = w.ReadString('\n')
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func TestSlogRecord(t *testing.T) {
 
 	l.Debug("debug", slog.Int("rec", 42), slog.Group("grec", slog.Bool("b", true), slog.Duration("t", time.Second)))
 
-	expected := regexp.MustCompile(`\{"_g1\.grec\.b":"true","_g1\.grec\.t":"1s","_g1\.r1":"1","_g1\.rec":42,"_level_name":"DEBUG","host":"hostname-42","level":7,"short_message":"\[uuid\] debug","timestamp":\d+.\d+,"version":"1\.1"\}`)
+	expected := regexp.MustCompile(`\{"version":"1\.1","_g1\.r1":"1","_g1\.rec":42,"_g1\.grec\.b":"true","_g1\.grec\.t":"1s","host":"hostname-42","timestamp":\d+.\d+,"level":7,"short_message":"\[uuid\] debug","_level_name":"DEBUG"\}`)
 	line, err := w.ReadString('\n')
 	if err != nil {
 		t.Fatal(err)

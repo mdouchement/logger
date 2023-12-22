@@ -102,8 +102,8 @@ func NewSlogTextHandler(w io.Writer, o *SlogTextOption) *SlogTextHandler {
 }
 
 // Enabled reports whether the handler handles records at the given level.
-func (f *SlogTextHandler) Enabled(_ context.Context, l slog.Level) bool {
-	return l >= f.opt.Level
+func (h *SlogTextHandler) Enabled(_ context.Context, l slog.Level) bool {
+	return l >= h.opt.Level
 }
 
 // WithAttrs returns a new Handler whose attributes consist of
@@ -114,6 +114,7 @@ func (h *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 
 	nh := h.Clone()
+	nh.attrs = make([]slog.Attr, 0, len(attrs))
 	for _, attr := range attrs {
 		if attr.Key == KeyPrefix {
 			nh.prefix += attr.Value.String()
@@ -229,7 +230,7 @@ func (h *SlogTextHandler) build() (string, []string, map[string]any) {
 	for i := len(ilineage) - 1; i >= 0; i-- {
 		p = ilineage[i]
 		if p.group != "" {
-			gprefix += p.group + "."
+			gprefix += p.group + delimiter
 		}
 
 		for _, attr := range ilineage[i].attrs {
@@ -359,7 +360,7 @@ func grouprecord(m map[string]any, p string, attr slog.Attr) []string {
 		return keys
 	}
 
-	p += attr.Key + "."
+	p += attr.Key + delimiter
 	for _, a := range attr.Value.Group() {
 		if a.Value.Kind() == slog.KindGroup {
 			keys = append(keys, grouprecord(m, p, a)...)

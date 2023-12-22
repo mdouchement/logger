@@ -2,18 +2,16 @@ package logger
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/mdouchement/logger/syslog"
 )
 
 type (
+	// A SlogGELFOption holds SlogGELFHandler's options.
 	SlogGELFOption struct {
 		Level    slog.Level
 		Hostname string
@@ -21,11 +19,10 @@ type (
 
 	// A SlogGELFHandler is GELF formatter for log/slog.
 	SlogGELFHandler struct {
+		opt    *SlogGELFOption
 		writer io.Writer
 
-		level    slog.Level
-		hostname string
-
+		parent *SlogGELFHandler // TODO: is it a good idea for the GC?
 		prefix string
 		group  string
 		attrs  []slog.Attr
@@ -47,15 +44,14 @@ func NewSlogGELFHandler(w io.Writer, o *SlogGELFOption) *SlogGELFHandler {
 	}
 
 	return &SlogGELFHandler{
-		level:    o.Level,
-		hostname: o.Hostname,
-		writer:   w,
+		opt:    o,
+		writer: w,
 	}
 }
 
 // Enabled reports whether the handler handles records at the given level.
-func (f *SlogGELFHandler) Enabled(_ context.Context, l slog.Level) bool {
-	return l >= f.level
+func (h *SlogGELFHandler) Enabled(_ context.Context, l slog.Level) bool {
+	return l >= h.opt.Level
 }
 
 // WithAttrs returns a new Handler whose attributes consist of
@@ -65,19 +61,14 @@ func (h *SlogGELFHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		return h
 	}
 
-	var prefix string
-	if h.group != "" {
-		prefix = h.group + "."
-	}
-
 	nh := h.Clone() // Since h is cloned, it's just read, never edited so it's safe.
+	nh.attrs = make([]slog.Attr, 0, len(attrs))
 	for _, attr := range attrs {
 		if attr.Key == KeyPrefix {
 			nh.prefix += attr.Value.String()
 			continue
 		}
 
-		attr.Key = prefix + attr.Key
 		nh.attrs = append(nh.attrs, attr)
 	}
 
@@ -92,79 +83,69 @@ func (h *SlogGELFHandler) WithGroup(name string) slog.Handler {
 	}
 
 	nh := h.Clone() // Since h is cloned, it's just read, never edited so it's safe.
-	if h.group != "" {
-		nh.group = h.group + "." + name
-	} else {
-		nh.group = name
-	}
-
+	nh.group = name
 	return nh
 }
 
 // Handle handles the Record.
 func (h *SlogGELFHandler) Handle(_ context.Context, record slog.Record) error {
-	m := make(map[string]any, len(h.attrs)+record.NumAttrs()+10)
+	gelf := NewBufferGELF()
+
+	// Get all parents in a list.
+	ilineage := make([]*SlogGELFHandler, 0, 100)
+	p := h
+	for p != nil {
+		ilineage = append(ilineage, p)
+		p = p.parent
+	}
 
 	// Process handler's groups/attrs.
-	for _, attr := range h.attrs {
-		gelf(m, attr)
+	var gprefix string
+	for i := len(ilineage) - 1; i >= 0; i-- {
+		p = ilineage[i]
+		if p.group != "" {
+			gprefix += p.group + delimiter
+		}
+
+		for _, attr := range ilineage[i].attrs {
+			gelf.Add(gprefix+attr.Key, attr.Value.Any())
+		}
 	}
 
 	// Process record's groups/attrs.
 	if record.NumAttrs() > 0 {
-		var prefix string
-		if h.group != "" {
-			prefix = h.group + "."
-		}
-
 		record.Attrs(func(attr slog.Attr) bool {
-			gelfrecord(m, prefix, attr)
+			gelfrecord(gelf, gprefix, attr)
 			return true
 		})
 	}
 
 	// Main fields.
-	m["version"] = "1.1"
-	m["host"] = h.hostname
-	m["timestamp"] = float64(record.Time.UnixNano()) / 1e9 // Unix epoch timestamp in seconds with decimals for nanoseconds.
-	m["level"] = h.priorities(record.Level)
+	gelf.Host(h.opt.Hostname)
+	gelf.Timestamp(record.Time)
+	gelf.Level(h.priorities(record.Level))
 
 	if h.prefix != "" {
 		record.Message = fmt.Sprintf("%s %s", h.prefix, record.Message)
 	}
-	m["short_message"] = record.Message
-	// If there are newlines in the message, use the first line
-	// for the short_message and set the full_message to the
-	// original input. If the input has no newlines, stick the
-	// whole thing in short_message.
-	if i := strings.IndexRune(record.Message, '\n'); i > 0 {
-		m["short_message"] = record.Message[:i]
-		m["full_message"] = record.Message
-	}
+	gelf.Message(record.Message)
 
-	m["_level_name"] = record.Level.String()
+	gelf.Add("level_name", record.Level.String())
 	// m["_file"]
 	// m["_line"]
 
-	payload, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	_, err = h.writer.Write(append(payload, '\n'))
+	_, err := h.writer.Write(gelf.Complete(true))
 	return err
 }
 
+// Clone clones the entry, it creates a new instance and linking the parent to it.
 func (h *SlogGELFHandler) Clone() *SlogGELFHandler {
 	nh := &SlogGELFHandler{
-		level:    h.level,
-		hostname: h.hostname,
-		writer:   h.writer,
-		prefix:   h.prefix,
-		group:    h.group,
-		attrs:    make([]slog.Attr, len(h.attrs)),
+		parent: h,
+		opt:    h.opt,
+		prefix: h.prefix,
+		writer: h.writer,
 	}
-	copy(nh.attrs, h.attrs)
 
 	return nh
 }
@@ -186,46 +167,18 @@ func (SlogGELFHandler) priorities(level slog.Level) int32 {
 	return int32(p)
 }
 
-func gelfrecord(m map[string]any, p string, attr slog.Attr) {
+func gelfrecord(gelf *BufferGELF, p string, attr slog.Attr) {
 	if attr.Value.Kind() != slog.KindGroup {
-		attr.Key = p + attr.Key
-		gelf(m, attr)
+		gelf.Add(p+attr.Key, attr.Value.Any())
 		return
 	}
 
-	p += attr.Key + "."
+	p += attr.Key + delimiter
 	for _, a := range attr.Value.Group() {
 		if a.Value.Kind() == slog.KindGroup {
-			gelfrecord(m, p, a)
+			gelfrecord(gelf, p, a)
 			continue
 		}
-		a.Key = p + a.Key
-		gelf(m, a)
-	}
-}
-
-func gelf(m map[string]any, attr slog.Attr) {
-	// skip id if present
-	if attr.Key == "id" || attr.Key == "_id" {
-		return
-	}
-
-	// otherwise convert if necessary
-	switch value := attr.Value.Any().(type) {
-	case time.Time:
-		m["_"+attr.Key] = value.Format(time.RFC3339)
-	case uint, uint8, uint16, uint32,
-		int, int8, int16, int32, int64:
-		m["_"+attr.Key] = value
-	case uint64, float32, float64:
-		// NOTE: uint64 is not supported by graylog due to java limitation
-		//       so we're sending them as double for the time being
-		m["_"+attr.Key] = value
-	case bool:
-		m["_"+attr.Key] = fmt.Sprintf("%t", value)
-	case string:
-		m["_"+attr.Key] = value
-	default:
-		m["_"+attr.Key] = fmt.Sprint(value)
+		gelf.Add(p+a.Key, a.Value.Any())
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"golang.org/x/term"
 )
 
+const delimiter = "."
+
 func checkIfTerminal(w io.Writer) bool {
 	switch v := w.(type) {
 	case *os.File:
