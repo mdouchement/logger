@@ -22,10 +22,9 @@ type (
 		opt    *SlogGELFOption
 		writer io.Writer
 
-		parent *SlogGELFHandler // TODO: is it a good idea for the GC?
 		prefix string
 		group  string
-		attrs  []slog.Attr
+		gelf   *BufferGELF
 	}
 )
 
@@ -46,6 +45,7 @@ func NewSlogGELFHandler(w io.Writer, o *SlogGELFOption) *SlogGELFHandler {
 	return &SlogGELFHandler{
 		opt:    o,
 		writer: w,
+		gelf:   NewBufferGELF(),
 	}
 }
 
@@ -62,14 +62,13 @@ func (h *SlogGELFHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 
 	nh := h.Clone() // Since h is cloned, it's just read, never edited so it's safe.
-	nh.attrs = make([]slog.Attr, 0, len(attrs))
 	for _, attr := range attrs {
 		if attr.Key == KeyPrefix {
 			nh.prefix += attr.Value.String()
 			continue
 		}
 
-		nh.attrs = append(nh.attrs, attr)
+		nh.gelf.Add(nh.group+attr.Key, attr.Value.Any())
 	}
 
 	return nh
@@ -83,39 +82,18 @@ func (h *SlogGELFHandler) WithGroup(name string) slog.Handler {
 	}
 
 	nh := h.Clone() // Since h is cloned, it's just read, never edited so it's safe.
-	nh.group = name
+	nh.group = name + delimiter
 	return nh
 }
 
 // Handle handles the Record.
 func (h *SlogGELFHandler) Handle(_ context.Context, record slog.Record) error {
-	gelf := NewBufferGELF()
-
-	// Get all parents in a list.
-	ilineage := make([]*SlogGELFHandler, 0, 100)
-	p := h
-	for p != nil {
-		ilineage = append(ilineage, p)
-		p = p.parent
-	}
-
-	// Process handler's groups/attrs.
-	var gprefix string
-	for i := len(ilineage) - 1; i >= 0; i-- {
-		p = ilineage[i]
-		if p.group != "" {
-			gprefix += p.group + delimiter
-		}
-
-		for _, attr := range ilineage[i].attrs {
-			gelf.Add(gprefix+attr.Key, attr.Value.Any())
-		}
-	}
+	gelf := h.gelf.Clone()
 
 	// Process record's groups/attrs.
 	if record.NumAttrs() > 0 {
 		record.Attrs(func(attr slog.Attr) bool {
-			gelfrecord(gelf, gprefix, attr)
+			gelfrecord(gelf, h.group, attr)
 			return true
 		})
 	}
@@ -141,10 +119,11 @@ func (h *SlogGELFHandler) Handle(_ context.Context, record slog.Record) error {
 // Clone clones the entry, it creates a new instance and linking the parent to it.
 func (h *SlogGELFHandler) Clone() *SlogGELFHandler {
 	nh := &SlogGELFHandler{
-		parent: h,
 		opt:    h.opt,
-		prefix: h.prefix,
 		writer: h.writer,
+		prefix: h.prefix,
+		group:  h.group,
+		gelf:   h.gelf.Clone(),
 	}
 
 	return nh

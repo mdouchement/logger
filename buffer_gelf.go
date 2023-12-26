@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const buflen = 256
+
 // A BufferGELF is a buffer used to build GELF payload.
 type BufferGELF struct {
 	buf *bytes.Buffer
@@ -15,7 +17,12 @@ type BufferGELF struct {
 
 // NewBufferGELF returns a new BufferGELF.
 func NewBufferGELF() *BufferGELF {
-	buf := bytes.NewBuffer(make([]byte, 0, 256))
+	return NewBufferGELFs(buflen)
+}
+
+// NewBufferGELFs returns a new BufferGELF with buffer of size.
+func NewBufferGELFs(size int) *BufferGELF {
+	buf := bytes.NewBuffer(make([]byte, 0, size))
 	buf.WriteString(`{"version":"1.1"`)
 	return &BufferGELF{
 		buf: buf,
@@ -109,6 +116,14 @@ func (b *BufferGELF) Complete(ln bool) []byte {
 // Bytes returns the bytes of the current GELF payload state.
 func (b *BufferGELF) Bytes() []byte {
 	return b.buf.Bytes()
+}
+
+// Clone clones the current state of the BufferGELF.
+func (b *BufferGELF) Clone() *BufferGELF {
+	nb := NewBufferGELFs(b.buf.Cap())
+	nb.buf.Reset() // Remove initialization data.
+	nb.buf.Write(b.Bytes())
+	return nb
 }
 
 func (b *BufferGELF) key(k string) {
