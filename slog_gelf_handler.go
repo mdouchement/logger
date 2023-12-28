@@ -22,7 +22,7 @@ type (
 		opt    *SlogGELFOption
 		writer io.Writer
 
-		parent *SlogGELFHandler // TODO: is it a good idea for the GC?
+		parent *SlogGELFHandler
 		prefix string
 		group  string
 		attrs  []slog.Attr

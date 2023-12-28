@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"io"
 	"os"
 	"time"
@@ -10,6 +11,8 @@ import (
 )
 
 const delimiter = "."
+
+var void = context.Background()
 
 func checkIfTerminal(w io.Writer) bool {
 	switch v := w.(type) {
