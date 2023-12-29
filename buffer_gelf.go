@@ -96,6 +96,14 @@ func (b *BufferGELF) Add(k string, v any) {
 	}
 }
 
+// AddPreformatted adds preformatted key/value to the GELF buffer.
+func (b *BufferGELF) AddPreformatted(artifacts ...string) {
+	for _, a := range artifacts {
+		b.buf.WriteString(",")
+		b.buf.WriteString(a)
+	}
+}
+
 // Complete returns the completed GELF payload with a `\n' when ln is true.
 func (b *BufferGELF) Complete(ln bool) []byte {
 	b.buf.WriteString("}")
@@ -115,4 +123,33 @@ func (b *BufferGELF) key(k string) {
 	b.buf.WriteString(",")
 	b.buf.WriteString(strconv.QuoteToGraphic(k))
 	b.buf.WriteString(":")
+}
+
+// ToPreformattedGELF converts the given params to an entry of BufferGELF.
+func ToPreformattedGELF(k string, v any) (string, bool) {
+	// skip id
+	if k == "id" || k == "_id" {
+		return "", false
+	}
+
+	// otherwise convert if necessary
+	switch value := v.(type) {
+	case time.Time:
+		return fmt.Sprintf(`"_%s":"%s"`, k, value.Format(time.RFC3339)), true
+	case uint, uint8, uint16, uint32,
+		int, int8, int16, int32, int64:
+		return fmt.Sprintf(`"_%s":%d`, k, value), true
+	case uint64:
+		// NOTE: uint64 is not supported by graylog due to java limitation
+		//       so we're sending them as double for the time being
+		return fmt.Sprintf(`"_%s":%f`, k, float64(value)), true
+	case float32, float64:
+		return fmt.Sprintf(`"_%s":%f`, k, value), true
+	case bool:
+		return fmt.Sprintf(`"_%s":"%t"`, k, value), true
+	case string:
+		return fmt.Sprintf(`"_%s":%s`, k, strconv.QuoteToGraphic(value)), true
+	default:
+		return fmt.Sprintf(`"_%s":%s`, k, strconv.QuoteToGraphic(fmt.Sprint(value))), true
+	}
 }
