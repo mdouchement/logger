@@ -107,7 +107,7 @@ func (h *SlogGELFHandler) Handle(_ context.Context, record slog.Record) error {
 			gprefix += p.group + delimiter
 		}
 
-		for _, attr := range ilineage[i].attrs {
+		for _, attr := range p.attrs {
 			gelf.Add(gprefix+attr.Key, attr.Value.Any())
 		}
 	}
@@ -140,14 +140,12 @@ func (h *SlogGELFHandler) Handle(_ context.Context, record slog.Record) error {
 
 // Clone clones the entry, it creates a new instance and linking the parent to it.
 func (h *SlogGELFHandler) Clone() *SlogGELFHandler {
-	nh := &SlogGELFHandler{
+	return &SlogGELFHandler{
 		parent: h,
 		opt:    h.opt,
 		prefix: h.prefix,
 		writer: h.writer,
 	}
-
-	return nh
 }
 
 func (SlogGELFHandler) priorities(level slog.Level) int32 {

@@ -35,6 +35,22 @@ func BenchmarkLogrusGELF(b *testing.B) {
 
 func BenchmarkSlogGELF(b *testing.B) {
 	w := new(bytes.Buffer)
+	base := logger.NewPrefixLogger(&logger.PrefixGELF{Writer: w, Level: slog.LevelInfo, Hostname: "hostname"})
+
+	var l logger.Logger
+	for i := 0; i < b.N; i++ {
+		l = base.WithPrefix("[prefix]")
+		l = l.WithField("f1", 42).WithField("f2", "42").WithField("f3", 42).WithField("f4", "42")
+		l = l.WithPrefixf("[%s]", 4242)
+		l.Info("message")
+	}
+
+	b.ReportAllocs()
+	result = w.Bytes()
+}
+
+func BenchmarkPrefixLoggerGELF(b *testing.B) {
+	w := new(bytes.Buffer)
 	ll := slog.New(logger.NewSlogGELFHandler(w, &logger.SlogGELFOption{Hostname: "hostname"}))
 	base := logger.WrapSlog(ll)
 

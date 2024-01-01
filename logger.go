@@ -1,6 +1,6 @@
 package logger
 
-// A KeyPrefix is used to tell that en given attr/field is a prefix.
+// KeyPrefix is used to tell that en given attr/field is a prefix.
 const KeyPrefix = "__prefix"
 
 // A Logger is the interface used in this package for logging,
