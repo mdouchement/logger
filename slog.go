@@ -4,24 +4,30 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 )
 
 type slogwrapper struct {
-	prefix string
-	slog   *slog.Logger
+	handler slog.Handler
 }
 
 // WrapSlog returns Logger based on log/slog backend.
 func WrapSlog(l *slog.Logger) Logger {
 	return &slogwrapper{
-		slog: cloneslog(l),
+		handler: l.Handler(),
+	}
+}
+
+// WrapSlogHandler returns Logger based on log/slog's handler backend.
+func WrapSlogHandler(h slog.Handler) Logger {
+	return &slogwrapper{
+		handler: h,
 	}
 }
 
 func (w *slogwrapper) WithPrefix(prefix string) Logger {
 	return &slogwrapper{
-		prefix: w.prefix + prefix,
-		slog:   cloneslog(w.slog),
+		handler: w.handler.WithAttrs([]slog.Attr{slog.Any(KeyPrefix, prefix)}),
 	}
 }
 
@@ -31,65 +37,61 @@ func (w *slogwrapper) WithPrefixf(format string, args ...any) Logger {
 
 func (w *slogwrapper) WithField(key string, value any) Logger {
 	return &slogwrapper{
-		prefix: w.prefix,
-		slog:   w.slog.With(key, value),
+		handler: w.handler.WithAttrs([]slog.Attr{slog.Any(key, value)}),
 	}
 }
 
 func (w *slogwrapper) WithError(err error) Logger {
 	return &slogwrapper{
-		prefix: w.prefix,
-		slog:   w.slog.With("error", err),
+		handler: w.handler.WithAttrs([]slog.Attr{slog.Any("error", err)}),
 	}
 }
 
 func (w *slogwrapper) WithFields(fields map[string]any) Logger {
-	l := &slogwrapper{
-		prefix: w.prefix,
-		slog:   cloneslog(w.slog),
-	}
-
+	attrs := make([]slog.Attr, 0, len(fields))
 	for k, v := range fields {
-		l.slog = l.slog.With(k, v)
+		attrs = append(attrs, slog.Any(k, v))
 	}
 
-	return l
+	return &slogwrapper{
+		handler: w.handler.WithAttrs(attrs),
+	}
 }
 
 func (w *slogwrapper) Debug(args ...any) {
-	w.slog.Debug(w.args(args))
+	w.logln(slog.LevelDebug, args)
 }
 
 func (w *slogwrapper) Debugf(format string, args ...any) {
-	w.slog.Debug(w.format(format, args))
+	w.logf(slog.LevelDebug, format, args)
 }
 
 func (w *slogwrapper) Info(args ...any) {
-	w.slog.Info(w.args(args))
+	w.logln(slog.LevelInfo, args)
 }
 
 func (w *slogwrapper) Infof(format string, args ...any) {
-	w.slog.Info(w.format(format, args))
+	w.logf(slog.LevelInfo, format, args)
 }
 
 func (w *slogwrapper) Warn(args ...any) {
-	w.slog.Warn(w.args(args))
+	w.logln(slog.LevelWarn, args)
 }
 
 func (w *slogwrapper) Warnf(format string, args ...any) {
-	w.slog.Warn(w.format(format, args))
+	w.logf(slog.LevelWarn, format, args)
 }
 
 func (w *slogwrapper) Error(args ...any) {
-	w.slog.Error(w.args(args))
+	w.logln(slog.LevelError, args)
 }
 
 func (w *slogwrapper) Errorf(format string, args ...any) {
-	w.slog.Error(w.format(format, args))
+	w.logf(slog.LevelError, format, args)
 }
 
 func (w *slogwrapper) Print(args ...any) {
-	w.slog.Info(w.args(args))
+	w.log(slog.LevelInfo, fmt.Sprint(args...))
 }
 
 func (w *slogwrapper) Printf(format string, args ...any) {
@@ -97,11 +99,11 @@ func (w *slogwrapper) Printf(format string, args ...any) {
 }
 
 func (w *slogwrapper) Println(args ...any) {
-	w.slog.Info(w.argsln(args))
+	w.Info(args...)
 }
 
 func (w *slogwrapper) Fatal(args ...any) {
-	w.Error(args...)
+	w.log(slog.LevelError, fmt.Sprint(args...))
 	os.Exit(1)
 }
 
@@ -111,12 +113,12 @@ func (w *slogwrapper) Fatalf(format string, args ...any) {
 }
 
 func (w *slogwrapper) Fatalln(args ...any) {
-	w.slog.Error(w.argsln(args))
+	w.Error(args...)
 	os.Exit(1)
 }
 
 func (w *slogwrapper) Panic(args ...any) {
-	w.Error(args...)
+	w.log(slog.LevelError, fmt.Sprint(args...))
 	panic(w)
 }
 
@@ -126,7 +128,7 @@ func (w *slogwrapper) Panicf(format string, args ...any) {
 }
 
 func (w *slogwrapper) Panicln(args ...any) {
-	w.slog.Error(w.argsln(args))
+	w.Error(args...)
 	panic(w)
 }
 
@@ -135,39 +137,22 @@ func (w *slogwrapper) Panicln(args ...any) {
 //
 //
 
-func (w *slogwrapper) format(format string, args []any) string {
-	return fmt.Sprintf(w.appendPrefix(format), args...)
-}
-
-func (w *slogwrapper) args(args []any) string {
-	args = w.prependPrefix(args)
-	return fmt.Sprint(args...)
-}
-
-func (w *slogwrapper) argsln(args []any) string {
-	args = w.prependPrefix(args)
+// join args with spaces. The \n at the end of string is trimed.
+func (w *slogwrapper) logln(level slog.Level, args []any) {
 	msg := fmt.Sprintln(args...)
-	return msg[:len(msg)-1]
+	w.log(level, msg[:len(msg)-1])
 }
 
-func (w *slogwrapper) appendPrefix(msg string) string {
-	if w.prefix == "" {
-		return msg
+func (w *slogwrapper) logf(level slog.Level, msg string, args []any) {
+	w.log(level, fmt.Sprintf(msg, args...))
+}
+
+func (w *slogwrapper) log(level slog.Level, msg string) {
+	if !w.handler.Enabled(void, level) {
+		return
 	}
 
-	return fmt.Sprintf("%s %s", w.prefix, msg)
-}
-
-func (w *slogwrapper) prependPrefix(args []any) []any {
-	if w.prefix == "" {
-		return args
-	}
-
-	return append([]any{w.prefix + " "}, args...)
-}
-
-// aka l.clone()
-func cloneslog(l *slog.Logger) *slog.Logger {
-	c := *l
-	return &c
+	var pc uintptr
+	r := slog.NewRecord(time.Now(), level, msg, pc)
+	w.handler.Handle(void, r)
 }

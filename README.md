@@ -1,6 +1,6 @@
 # Logger
 
-A simple prefixer logger that can wrap several backends.
+A simple prefixer logger that can wrap several backends. The formatters/handlers from this repository must be used in order to make prefix work.
 
 
 ## Interface
@@ -38,6 +38,9 @@ type Logger interface {
 ## Backends
 
 - [Logrus](https://github.com/sirupsen/logrus) with `logger.WrapLogrus(l *logrus.Logger)` function
+- [slog](https://pkg.go.dev/log/slog) with `logger.WrapSlog(l *slog.Logger)` function
+  - [slog_gelf_handler.go](https://github.com/mdouchement/logger/blob/master/slog_gelf_handler.go) can be used independently
+  - [slog_text_handler.go](https://github.com/mdouchement/logger/blob/master/slog_text_handler.go) (logrus format) can be used independently
 
 
 ## Helpers
