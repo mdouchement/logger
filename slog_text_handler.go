@@ -12,6 +12,7 @@ import (
 )
 
 type (
+	// SlogTextOption holds SlogTextHandler's options.
 	SlogTextOption struct {
 		// Set the logger's level.
 		Level slog.Level
@@ -202,6 +203,7 @@ func (h *SlogTextHandler) Handle(_ context.Context, record slog.Record) error {
 	return err
 }
 
+// Clone clones the entry, it creates a new instance and linking the parent to it.
 func (h *SlogTextHandler) Clone() *SlogTextHandler {
 	return &SlogTextHandler{
 		parent:      h,

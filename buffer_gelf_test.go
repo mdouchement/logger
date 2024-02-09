@@ -60,4 +60,12 @@ func TestBufferGELF(t *testing.T) {
 	if string(b.Complete(false)) != `{"version":"1.1","_k":42,"_k":43}` {
 		t.Errorf("got: %s", b.Bytes())
 	}
+
+	//
+
+	b = logger.NewBufferGELF()
+	b.Message(string([]byte{162, 98, 107, 50, 251, 64, 64, 184, 81, 235, 133, 30, 184, 99, 107, 101, 121, 24, 42})) // Some CBOR payload
+	if string(b.Complete(false)) != `{"version":"1.1","short_message":"\ufffdbk2\ufffd@@\ufffdQ\ufffd\ufffd\u001e\ufffdckey\u0018*"}` {
+		t.Errorf("got: %s", b.Bytes())
+	}
 }
