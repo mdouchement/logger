@@ -18,11 +18,31 @@ func WrapSlog(l *slog.Logger) Logger {
 	}
 }
 
+// UnwrapSlog returns the embedded slog.Logger if WrapSlog/WrapSlogHandler was used to wrap.
+func UnwrapSlog(l Logger) (*slog.Logger, bool) {
+	w, ok := l.(*slogwrapper)
+	if !ok {
+		return nil, false
+	}
+
+	return slog.New(w.handler), true
+}
+
 // WrapSlogHandler returns Logger based on log/slog's handler backend.
 func WrapSlogHandler(h slog.Handler) Logger {
 	return &slogwrapper{
 		handler: h,
 	}
+}
+
+// UnwrapSlogHandler returns the embedded slog.Handler if WrapSlog/WrapSlogHandler was used to wrap.
+func UnwrapSlogHandler(l Logger) (slog.Handler, bool) {
+	w, ok := l.(*slogwrapper)
+	if !ok {
+		return nil, false
+	}
+
+	return w.handler, true
 }
 
 func (w *slogwrapper) WithPrefix(prefix string) Logger {

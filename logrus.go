@@ -11,6 +11,8 @@ type logruswrapper struct {
 }
 
 // WrapLogrus returns Logger based on Logrus backend.
+//
+// Deprecated: Use WrapSlog instead.
 func WrapLogrus(l *logrus.Logger) Logger {
 	return &logruswrapper{
 		logrus: logrus.NewEntry(l),
